@@ -173,12 +173,38 @@ namespace FEZRepacker.Interface
 
         public static void ConvertFromXNB(string inputPath, string outputPath)
         {
-            Console.WriteLine("Feature currently not supported.");
+            if (File.Exists(inputPath))
+            {
+                // Input is a single XNB file
+                using var inputStream = File.OpenRead(inputPath);
+                XnbConverter converter = new();
+                using var converted = converter.Convert(inputStream);
+
+                if (!converter.Converted)
+                {
+                    throw new Exception("Conversion failed.");
+                }
+
+                var data = converted.GetData();
+                using var outputStream = File.OpenWrite(outputPath);
+                data.CopyTo(outputStream);
+            }
+            else if (Directory.Exists(inputPath))
+            {
+                // Input is a directory containing XNB files
+                var filePaths = Directory.GetFiles(inputPath, "*.xnb", SearchOption.AllDirectories);
+            }
+            else
+            {
+                throw new Exception("Input must be a path to an XNB file or a directory.");
+            }
+
+            throw new NotImplementedException();
         }
 
         public static void ConvertIntoXNB(string inputPath, string outputPath)
         {
-            Console.WriteLine("Feature currently not supported.");
+            throw new NotImplementedException();
         }
 
         public static void AddToPackage(string inputPath, string outputPackagePath, string includePackagePath)
