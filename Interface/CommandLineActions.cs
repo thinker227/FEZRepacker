@@ -173,33 +173,71 @@ namespace FEZRepacker.Interface
 
         public static void ConvertFromXNB(string inputPath, string outputPath)
         {
+            // TODO: Clean up.
+            // TODO: Add logs.
+            
+            string[] filePaths;
+            string inputDirectory;
+            
             if (File.Exists(inputPath))
             {
-                // Input is a single XNB file
-                using var inputStream = File.OpenRead(inputPath);
-                XnbConverter converter = new();
-                using var converted = converter.Convert(inputStream);
-
-                if (!converter.Converted)
+                if (!Path.GetExtension(inputPath).Equals(".xnb", StringComparison.OrdinalIgnoreCase))
                 {
-                    throw new Exception("Conversion failed.");
+                    throw new Exception("Input file must be an XNB file.");
                 }
-
-                var data = converted.GetData();
-                using var outputStream = File.OpenWrite(outputPath);
-                data.CopyTo(outputStream);
+                
+                filePaths = new[] { inputPath };
+                // This is the cleanest way I know of to get the directory of a file.
+                inputDirectory = new FileInfo(inputPath).DirectoryName!;
             }
             else if (Directory.Exists(inputPath))
             {
-                // Input is a directory containing XNB files
-                var filePaths = Directory.GetFiles(inputPath, "*.xnb", SearchOption.AllDirectories);
+                filePaths = Directory.GetFiles(inputPath, "*.xnb", SearchOption.AllDirectories);
+                inputDirectory = inputPath;
             }
             else
             {
                 throw new Exception("Input must be a path to an XNB file or a directory.");
             }
 
-            throw new NotImplementedException();
+            // RelativePath is the relative path of the asset from inputDirectory.
+            // FileName is the name of the file.
+            // Extension is the asset extension.
+            // Data is the asset data.
+            var assetsToAdd = new List<(string RelativePath, string FileName, string Extension, Stream Data)>();
+
+            foreach (string xnbFilePath in filePaths)
+            {
+                using var inputStream = File.OpenRead(xnbFilePath);
+                XnbConverter converter = new();
+                var bundle = converter.Convert(inputStream);
+
+                if (!converter.Converted)
+                {
+                    throw new Exception("Conversion failed.");
+                }
+
+                var info = new FileInfo(xnbFilePath);
+                var fileName = Path.GetFileNameWithoutExtension(info.Name);
+                var directory = info.DirectoryName!;
+                var relativePath = Path.GetRelativePath(inputDirectory, directory);
+                
+                foreach(var file in bundle)
+                {
+                    file.Data.Seek(0, SeekOrigin.Begin);
+                    var ext = bundle.MainExtension + file.Extension;
+                    assetsToAdd.Add((relativePath, fileName, ext, file.Data));
+                }
+            }
+
+            foreach ((string relativePath, string fileName, string extension, Stream data) in assetsToAdd)
+            {
+                var outputDirectory = Path.Combine(outputPath, relativePath);
+                var outputFilePath = Path.Combine(outputDirectory, fileName) + extension;
+
+                using var outputStream = File.OpenWrite(outputFilePath);
+                data.CopyTo(outputStream);
+            }
         }
 
         public static void ConvertIntoXNB(string inputPath, string outputPath)
